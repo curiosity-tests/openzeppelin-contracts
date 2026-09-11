@@ -1,4 +1,5 @@
 name: checks
+run-name: "checks ${{ inputs.leg || github.event_name }} ${{ inputs.racecar_run }}"
 
 on:
   push:
@@ -7,13 +8,28 @@ on:
       - next-v*
       - release-v*
   pull_request: {}
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      leg:
+        description: "baseline (uninstrumented) or instrumented (under chalk/curiosity)"
+        type: choice
+        options: [instrumented, baseline]
+        default: baseline
+      profile:
+        description: "CrashOverride chalk profile"
+        type: string
+        default: curiosity-tests-racecar
+      racecar_run:
+        description: "racecar correlation token, echoed into the run name"
+        type: string
+        default: ""
 
 concurrency:
   group: checks-${{ github.ref }}
   cancel-in-progress: true
 
 env:
+  CHALK_ON: ${{ inputs.leg == 'instrumented' }}
   NODE_OPTIONS: --max_old_space_size=8192
 
 jobs:
@@ -26,6 +42,7 @@ jobs:
         with:
           foundry: 'on'
       - run: npm run lint
+        continue-on-error: true   # racecar: scan/report/push step, must not fail the build
       - run: forge compile && forge lint --deny notes --only-lint unused-import
 
   tests:
@@ -96,6 +113,7 @@ jobs:
       - name: Run coverage
         run: npm run coverage
       - uses: codecov/codecov-action@v7
+        continue-on-error: true   # racecar: scan/report/push step, must not fail the build
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
